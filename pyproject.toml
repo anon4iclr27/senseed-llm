@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "senseed"
+version = "0.1.0"
+description = "SenSeed: sensitivity-aware seed-based weight compression for LLMs"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+  "numpy>=1.22",
+  "torch>=2.1",
+  "transformers>=4.40",
+  "accelerate>=0.28",
+  "safetensors>=0.4",
+  "pandas>=1.5",
+  "pyarrow>=12",
+  "datasets>=2.14,<5",
+  "huggingface_hub>=0.23",
+  "lm_eval==0.4.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+include = ["senseed*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
