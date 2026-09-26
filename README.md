@@ -1,4 +1,4 @@
-# SenSeed: sensitivity-aware seed-based weight compression for LLMs
+# SenSeed-LLM: Sensitivity-Aware Secure Seed-Based Weight Quantization for LLMs
 
 Anonymous code release for double-blind review. Licensed under Apache-2.0 (see LICENSE).
 
