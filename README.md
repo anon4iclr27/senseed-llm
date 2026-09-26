@@ -17,6 +17,7 @@ uv run python scripts/download_data.py     # WikiText-2 -> ./data, caches ARC-E/
 ```
 
 ## Run
+Choose the model by name (`uv run python scripts/download_models.py --list` shows them):
 ```bash
 bash scripts/run_pipeline.sh llama-2-7b            # all four schemes: PPL + zero-shot
 bash scripts/run_pipeline.sh llama-2-7b seedlm     # one scheme
@@ -24,12 +25,15 @@ bash scripts/run_pipeline.sh llama-2-7b seedlm     # one scheme
 Results land in `results/`. Compressing a 7B model with the seed search needs
 GPUs (`DEVICES=auto`) and many hours; SeedLM/S-Quant run on CPU pools.
 
-## Smoke test
+## Smoke tests
 ```bash
-uv run pytest -q
+uv run pytest -q                 # unit tests, CPU, ~1 min
+bash scripts/smoke_test.sh       # end-to-end on Qwen-2.5-0.5B (one layer, small eval)
 ```
 
 ## Layout
+See [docs/replicating.md](docs/replicating.md) for how to reproduce the paper runs step by step.
+
 `senseed/` codecs and data-free sensitivity · `experiments/` checkpoint
 compression and perplexity evaluation · `scripts/` setup, lm-eval,
 allocation tools · `docs/` implementation notes · `tests/`.

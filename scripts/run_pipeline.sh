@@ -4,7 +4,8 @@
 # schemes default to: bf16 seedlm squant senseed.  Restartable: an arm whose
 # results/<model>-<scheme>.ppl.json exists is skipped.
 set -euo pipefail
-M=${1:?model name under models/}; shift || true
+M=${1:?usage: run_pipeline.sh <model> [schemes...]  (models: see scripts/download_models.py --list)}; shift || true
+[ -d "models/$M" ] || { echo "models/$M not found; run: uv run python scripts/download_models.py $M"; exit 1; }
 SCHEMES=${*:-"bf16 seedlm squant senseed"}
 DEVICES=${DEVICES:-auto}; TEXT=data/wikitext2_test.txt
 mkdir -p results ckpt
