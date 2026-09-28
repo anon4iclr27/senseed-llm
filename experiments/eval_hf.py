@@ -60,7 +60,8 @@ def main():
     ap.add_argument("--seqlen", type=int, default=2048)
     ap.add_argument("--windows", type=int, default=0,
                     help="0 = every non-overlapping window in the text")
-    ap.add_argument("--device", default="cuda:0")
+    ap.add_argument("--device", default="auto",
+                    help="auto = cuda:0, else mps, else cpu")
     ap.add_argument("--dtype", default="float16",
                     choices=["float16", "bfloat16", "float32"])
     ap.add_argument("--out", default="")
@@ -77,6 +78,9 @@ def main():
     tok = AutoTokenizer.from_pretrained(tok_path, use_fast=True)
     model = AutoModelForCausalLM.from_pretrained(
         model_path, torch_dtype=dtype, low_cpu_mem_usage=True)
+    if args.device == "auto":
+        args.device = ("cuda:0" if torch.cuda.is_available() else
+                       "mps" if torch.backends.mps.is_available() else "cpu")
     model.eval().to(args.device)
     print(f"loaded {model_path} in {time.time() - t0:.0f}s, "
           f"{sum(p.numel() for p in model.parameters()) / 1e9:.2f}B params, "

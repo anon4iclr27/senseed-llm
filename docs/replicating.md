@@ -43,7 +43,7 @@ download a subset, e.g. `download_models.py llama-2-7b`.
 | Metric | Command | Settings |
 |---|---|---|
 | WikiText-2 perplexity | `experiments/eval_hf.py` | test split, raw text joined by blank lines, 2048-token non-overlapping windows |
-| Zero-shot accuracy | `scripts/run_lm_eval.sh` | LM Evaluation Harness 0.4.3, tasks `arc_easy, arc_challenge, hellaswag, winogrande, boolq`, 0-shot |
+| Zero-shot accuracy | `scripts/run_lm_eval.sh` | LM Evaluation Harness 0.4.3, tasks `arc_easy, arc_challenge, hellaswag, winogrande, boolq`, 0-shot (BoolQ runs as `boolq_aps` from `lm_eval_tasks/`: identical config, current dataset id `aps/super_glue`) |
 
 Single-checkpoint examples (any Hugging Face-format directory works):
 ```bash
@@ -117,6 +117,14 @@ DEVICES=cuda:0,cuda:1 bash scripts/run_pipeline.sh llama-3-8b senseed
 Results: `results/<model>-<scheme>.ppl.json` and `.lmeval.json`. An arm whose
 perplexity JSON exists is skipped, so the script is restartable. Repeat for
 `llama-2-13b`, `llama-3-8b` and `mistral-7b`.
+
+**Progress and logs.** `run_pipeline.sh` and `smoke_test.sh` print a
+`[k/N] stage` line (with elapsed time and a rough ETA) before each stage and
+mirror all output to `logs/<run>-<timestamp>.log`; follow a run with
+`tail -f logs/<file>`. During compression `compress_checkpoint.py` prints
+`[done/total]` per tensor with an ETA, a `... elapsed, n/m jobs done` heartbeat
+every 30 s (`--heartbeat`), and keeps its own log in `<out>/compress.log`
+(`--log` to change).
 
 ## 5. Cost check before a full run
 Compress a single layer and time it:

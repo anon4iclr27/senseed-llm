@@ -1,0 +1,18 @@
+# Same BoolQ task as lm-eval 0.4.3's boolq/default.yaml, but pointing at the
+# current Hugging Face dataset id (aps/super_glue); the legacy "super_glue"
+# id no longer resolves with recent huggingface_hub/datasets.
+task: boolq_aps
+dataset_path: aps/super_glue
+dataset_name: boolq
+output_type: multiple_choice
+training_split: train
+validation_split: validation
+doc_to_text: "{{passage}}\nQuestion: {{question}}?\nAnswer:"
+doc_to_target: label
+doc_to_choice: ["no", "yes"]
+should_decontaminate: true
+doc_to_decontamination_query: passage
+metric_list:
+  - metric: acc
+metadata:
+  version: 2.0

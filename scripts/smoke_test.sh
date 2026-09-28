@@ -13,9 +13,15 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 M=${1:-qwen2.5-0.5b}   # any name from download_models.py --list
 SCHEMES=${SMOKE_SCHEMES:-"bf16 senseed"}
-DEVICES=${DEVICES:-auto}
+# SenSeed compression: all CUDA GPUs if present, otherwise the (slow) numpy backend.
+if [ -z "${DEVICES+x}" ]; then
+  DEVICES=$(uv run python -c "import torch;print('auto' if torch.cuda.is_available() else '')")
+fi
 LAYERS=${LAYERS:-0}
 mkdir -p results/smoke ckpt data
+source scripts/_progress.sh
+n=0; for s in $SCHEMES; do [ "$s" = bf16 ] && n=$((n+2)) || n=$((n+3)); done
+progress_init "smoke-$M" "$n"
 
 [ -d "models/$M" ] || uv run python scripts/download_models.py "$M"
 [ -f data/wikitext2_test.txt ] || uv run python scripts/download_data.py
@@ -25,15 +31,20 @@ for s in $SCHEMES; do
   case $s in
     bf16)    ck="models/$M"; dt=bfloat16 ;;
     seedlm|squant)
+             stage "$s: compress layers $LAYERS"
              uv run python experiments/compress_checkpoint.py --model "models/$M" \
                --out "$ck" --method "$s" --layers "$LAYERS" --resume ;;
-    senseed) uv run python experiments/compress_checkpoint.py --model "models/$M" \
+    senseed) stage "senseed: compress layers $LAYERS"
+             uv run python experiments/compress_checkpoint.py --model "models/$M" \
                --out "$ck" --method senseed --layers "$LAYERS" --devices "$DEVICES" --resume ;;
     *) echo "unknown scheme $s"; exit 1 ;;
   esac
+  stage "$s: WikiText-2 perplexity"
   uv run python experiments/eval_hf.py --model "$ck" --text-file data/wikitext2_test.txt \
     --seqlen 2048 --windows 8 --dtype "$dt" --out "results/smoke/$s.ppl.json"
-  DTYPE=$dt TASKS=arc_easy,boolq bash scripts/run_lm_eval.sh "$ck" \
+  stage "$s: zero-shot (arc_easy, boolq_aps)"
+  BATCH=${BATCH:-8} DTYPE=$dt TASKS=arc_easy,boolq_aps bash scripts/run_lm_eval.sh "$ck" \
     "results/smoke/$s.lmeval.json" --limit 50
 done
-echo; echo "smoke results:"; ls results/smoke
+progress_done
+echo "smoke results:"; ls results/smoke

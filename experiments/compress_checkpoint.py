@@ -43,6 +43,7 @@ import argparse
 import json
 import os
 import shutil
+import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 
@@ -135,6 +136,39 @@ def _compress(spec):
     return name, part, hat, time.time() - t0, dev
 
 
+def _hms(sec):
+    sec = int(sec)
+    return f"{sec // 3600:d}:{sec % 3600 // 60:02d}:{sec % 60:02d}"
+
+
+class _Tee:
+    """Mirror stdout to a log file so a run can be followed with `tail -f`."""
+
+    def __init__(self, stream, path):
+        self.stream, self.f = stream, open(path, "a", buffering=1)
+
+    def write(self, x):
+        self.stream.write(x)
+        self.f.write(x)
+
+    def flush(self):
+        self.stream.flush()
+        self.f.flush()
+
+
+def _heartbeat(state, every):
+    """Print a line every `every` s so a long job never looks hung."""
+    import threading
+    stop = threading.Event()
+
+    def run():
+        while not stop.wait(every):
+            print(f"  ... {_hms(time.time() - state['t0'])} elapsed, "
+                  f"{state['done']}/{state['total']} jobs done", flush=True)
+    threading.Thread(target=run, daemon=True).start()
+    return stop
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True)
@@ -172,7 +206,15 @@ def main():
                     choices=["source", "F16", "BF16", "F32"])
     ap.add_argument("--resume", action="store_true",
                     help="skip shards already written to --out")
+    ap.add_argument("--log", default="",
+                    help="log file (default: <out>/compress.log)")
+    ap.add_argument("--heartbeat", type=float, default=30,
+                    help="seconds between 'still running' lines (0 = off)")
     args = ap.parse_args()
+    os.makedirs(os.path.expanduser(args.out), exist_ok=True)
+    sys.stdout = _Tee(sys.stdout, args.log or
+                      os.path.join(os.path.expanduser(args.out), "compress.log"))
+    print(f"\n=== {time.strftime('%F %T')} {' '.join(sys.argv[1:])}", flush=True)
     global SQUANT_CFG
     SQUANT_CFG = SQuantConfig(R_th=args.squant_rth)
 
@@ -293,6 +335,8 @@ def main():
 
         import multiprocessing as _mp
         done, parts = 0, {}
+        state = dict(t0=time.time(), done=0, total=len(jobs))
+        hb = _heartbeat(state, args.heartbeat) if args.heartbeat > 0 else None
         for pool_jobs, pool_devices, n, kind in (
                 (gpu_jobs, devices, workers, "spawn"),
                 (cpu_jobs, ["numpy"], cpu_workers, "fork")):
@@ -309,6 +353,7 @@ def main():
                 for k, part, hat, dt, dev in ex.map(_compress, pool_jobs):
                     parts.setdefault(k, {})[part] = hat
                     done += 1
+                    state["done"] = done
                     stats.append(dict(name=k, part=part, seconds=dt,
                                       device=dev))
                     if nparts[k] == 1 or len(parts[k]) == nparts[k]:
@@ -318,7 +363,12 @@ def main():
                         parts.pop(k, None)
                     print(f"  [{done}/{len(jobs)}] {k}"
                           f"{'' if nparts[k] == 1 else f' [{part + 1}/{nparts[k]}]'}"
-                          f"  {dt:7.1f}s on {dev}", flush=True)
+                          f"  {dt:7.1f}s on {dev}"
+                          f"  [{_hms(time.time() - state['t0'])} elapsed, ETA "
+                          f"{_hms((time.time() - state['t0']) / done * (len(jobs) - done))}]",
+                          flush=True)
+        if hb:
+            hb.set()
 
         if args.stats_only:
             del tensors

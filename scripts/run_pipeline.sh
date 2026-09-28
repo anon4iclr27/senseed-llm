@@ -9,19 +9,27 @@ M=${1:?usage: run_pipeline.sh <model> [schemes...]  (models: see scripts/downloa
 SCHEMES=${*:-"bf16 seedlm squant senseed"}
 DEVICES=${DEVICES:-auto}; TEXT=data/wikitext2_test.txt
 mkdir -p results ckpt
+source scripts/_progress.sh
+n=0; for s in $SCHEMES; do [ "$s" = bf16 ] && n=$((n+2)) || n=$((n+3)); done
+progress_init "pipeline-$M" "$n"
 for s in $SCHEMES; do
   tag="$M-$s"; ck="ckpt/$tag"; res="results/$tag.ppl.json"
   [ -f "$res" ] && { echo "skip $tag"; continue; }
   case $s in
     bf16)   ck="models/$M"; dt=bfloat16 ;;
     seedlm|squant)
+            stage "$tag: compress"
             uv run python experiments/compress_checkpoint.py --model "models/$M" \
               --out "$ck" --method "$s" --resume; dt=float16 ;;
-    senseed) uv run python experiments/compress_checkpoint.py --model "models/$M" \
+    senseed) stage "$tag: compress"
+            uv run python experiments/compress_checkpoint.py --model "models/$M" \
               --out "$ck" --method senseed --devices "$DEVICES" --resume; dt=float16 ;;
     *) echo "unknown scheme $s"; exit 1 ;;
   esac
+  stage "$tag: WikiText-2 perplexity"
   uv run python experiments/eval_hf.py --model "$ck" --text-file "$TEXT" \
     --seqlen 2048 --dtype "$dt" --out "$res"
+  stage "$tag: zero-shot (5 tasks)"
   DTYPE=$dt bash scripts/run_lm_eval.sh "$ck" "results/$tag.lmeval.json"
 done
+progress_done
